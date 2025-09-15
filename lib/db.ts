@@ -1,12 +1,11 @@
-// lib/db.ts
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-
-import * as schema from "./schema";
+import { env } from "./env";
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // use pooled URL
-  ssl: { rejectUnauthorized: false }, // required for Supabase
+  connectionString: env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+ // just require SSL, don’t fuss with certs
 });
 
-export const db = drizzle(pool, { schema });
+export const db = drizzle(pool);
