@@ -1,4 +1,8 @@
-import type { NextRequest } from "next/server";
+// app/[code]/route.ts
+import 'server-only';                     // ← server bundle only
+export const dynamic = 'force-dynamic';   // ← never prerender / collect static data
+export const runtime = 'nodejs';          // ← run on Node (not Edge)
+
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { links } from "@/lib/schema";
@@ -6,8 +10,7 @@ import { eq } from "drizzle-orm";
 import { isBot, deviceType } from "@/lib/bots";
 import { env } from "@/lib/env";
 
-export const runtime = "edge";
-
+// Tiny non-crypto hash for daily-unique approximation
 function hashIp(ip: string, salt: string): string {
   const s = ip + "|" + salt;
   let h = 0;
@@ -15,26 +18,33 @@ function hashIp(ip: string, salt: string): string {
   return `h${h >>> 0}`;
 }
 
-export async function GET(req: NextRequest, { params }: { params: { code: string } }) {
+export async function GET(req: Request, { params }: { params: { code: string } }) {
   const code = params.code;
-
   if (!code || code.includes("/")) {
     return NextResponse.json({ error: "bad code" }, { status: 400 });
   }
 
-  const [link] = await db.select().from(links).where(eq(links.code, code)).limit(1);
+  // DB lookup (Node runtime can use pg)
+  let link;
+  try {
+    [link] = await db.select().from(links).where(eq(links.code, code)).limit(1);
+  } catch (e) {
+    // If anything fails at build/runtime, return 404 rather than throwing during "collect page data"
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   if (!link || !link.isActive) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // best-effort beacon (don’t await)
+  // Best-effort click log (don’t await)
   try {
     const ua = req.headers.get("user-agent");
     const referrer = req.headers.get("referer");
-    const ip = req.ip ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
-    const country = (req.geo?.country || "") as string;
-    const region = (req.geo?.region || "") as string;
-    const city = (req.geo?.city || "") as string;
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "";
+    const country = req.headers.get("x-vercel-ip-country") || "";
+    const region = req.headers.get("x-vercel-ip-country-region") || "";
+    const city = req.headers.get("x-vercel-ip-city") || "";
 
     const payload = {
       code,
@@ -48,9 +58,7 @@ export async function GET(req: NextRequest, { params }: { params: { code: string
       bot: isBot(ua),
     };
 
-    // fire-and-forget; keepalive helps finish after redirect
-
-    fetch(new URL("/api/v1/ingest-click", req.url), {
+    void fetch(new URL("/api/v1/ingest-click", req.url), {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": env.API_KEY },
       body: JSON.stringify(payload),
@@ -58,5 +66,5 @@ export async function GET(req: NextRequest, { params }: { params: { code: string
     }).catch(() => {});
   } catch {}
 
-  return NextResponse.redirect(link.url, 307);
+  return NextResponse.redirect(link.url, 307); // 301 once stable
 }
