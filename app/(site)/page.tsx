@@ -1,25 +1,50 @@
-// app/(site)/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 
-type LinkRow = { code: string; url: string; createdAt: number; clicks: number };
+type LinkRow = {
+  code: string;
+  url: string;
+  createdAt: number;
+  clicks: number;
+};
+
+function normalizeUrl(str: string): string | null {
+  let s = str.trim();
+
+  // if missing scheme, add https://
+  if (!/^https?:\/\//i.test(s)) {
+    s = "https://" + s;
+  }
+
+  try {
+    const u = new URL(s);
+
+    // Extra validation:
+    // 1. Must have a hostname with at least one dot (so "google" fails)
+    // 2. No spaces inside the hostname
+    if (!u.hostname.includes(".") || /\s/.test(u.hostname)) {
+      return null;
+    }
+
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+
 
 export default function HomePage() {
   const [url, setUrl] = useState("");
   const [custom, setCustom] = useState("");
   const [busy, setBusy] = useState(false);
+
   const [created, setCreated] = useState<string | null>(null);
-const [createdLongUrl, setCreatedLongUrl] = useState<string | null>(null); // new
+  const [createdLongUrl, setCreatedLongUrl] = useState<string | null>(null);
 
   const [links, setLinks] = useState<LinkRow[]>([]);
-  const [origin, setOrigin] = useState<string>("");
-
-function looksLikeUrl(str: string) {
-  return /^[\w.-]+\.[a-z]{2,}$/i.test(str); // quick check: has a dot + TLD
-}
-
-
+  const [origin, setOrigin] = useState("");
 
   useEffect(() => {
     setOrigin(typeof window !== "undefined" ? window.location.origin : "");
@@ -43,19 +68,14 @@ function looksLikeUrl(str: string) {
   async function onShorten(e: React.FormEvent) {
     e.preventDefault();
     if (!url) return alert("Enter a URL");
-if (!looksLikeUrl(url)) {
-  return alert("Please enter a valid URL");
-  ;
-}
 
-    // validation: add https:// if missing
-    let normalized = url.trim();
-    if (!/^https?:\/\//i.test(normalized)) {
-      normalized = "https://" + normalized;
-    }
+    const normalized = normalizeUrl(url);
+    if (!normalized) return alert("Please enter a valid URL");
 
     setBusy(true);
     setCreated(null);
+    setCreatedLongUrl(null);
+
     try {
       const r = await fetch("/api/v1/shorten", {
         method: "POST",
@@ -65,10 +85,13 @@ if (!looksLikeUrl(url)) {
         },
         body: JSON.stringify({ url: normalized, alias: custom }),
       });
+
       const j = (await r.json()) as { code?: string; error?: string };
       if (!r.ok) throw new Error(j.error || "Failed");
+
       setCreated(j.code ?? null);
-      setCreatedLongUrl(url);   // preserve original URL
+      setCreatedLongUrl(normalized);
+
       setUrl("");
       setCustom("");
       void refresh();
@@ -78,8 +101,6 @@ if (!looksLikeUrl(url)) {
     } finally {
       setBusy(false);
     }
-
-
   }
 
   const shortUrl = created && origin ? `${origin}/${created}` : "";
@@ -95,7 +116,7 @@ if (!looksLikeUrl(url)) {
           with QR code.
         </p>
 
-        {/* Shorten form */}
+        {/* Form */}
         <section className="mt-8 rounded-2xl border border-gray-200 p-5 shadow-sm">
           <form onSubmit={onShorten} className="space-y-4">
             <label className="block text-sm font-medium">Enter your URL</label>
@@ -105,7 +126,8 @@ if (!looksLikeUrl(url)) {
               placeholder="example.com or https://example.com"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:border-gray-500 focus:outline-none hover:bg-gray-50"
+              className="w-full rounded-xl border border-gray-300 px-3 py-2 
+                         focus:border-gray-500 focus:outline-none hover:bg-gray-50"
             />
 
             <details className="rounded-lg bg-gray-50 p-3">
@@ -121,7 +143,8 @@ if (!looksLikeUrl(url)) {
                   placeholder="myalias"
                   value={custom}
                   onChange={(e) => setCustom(e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 px-3 py-2 focus:border-gray-500 focus:outline-none hover:bg-gray-50"
+                  className="w-full rounded-xl border border-gray-300 px-3 py-2 
+                             focus:border-gray-500 focus:outline-none hover:bg-gray-50"
                 />
                 <p className="text-xs text-gray-500">
                   Your short link will look like{" "}
@@ -134,7 +157,10 @@ if (!looksLikeUrl(url)) {
 
             <button
               disabled={busy}
-              className="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-2 text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 cursor-pointer disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center rounded-xl 
+                         bg-gray-900 px-4 py-2 text-white hover:bg-gray-800 
+                         focus:outline-none focus:ring-2 focus:ring-gray-500 
+                         cursor-pointer disabled:opacity-60"
             >
               {busy ? "Creating…" : "Shorten URL"}
             </button>
@@ -142,49 +168,46 @@ if (!looksLikeUrl(url)) {
 
           {/* Result */}
           {created && (
-          <div className="mt-6 rounded-xl bg-gray-50 p-4">
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <div className="text-sm text-gray-500">Your short link</div>
-        <div className="font-mono text-lg">{shortUrl}</div>
-        {/* Long URL preview */}
-        {createdLongUrl && (
-          <div className="mt-1 text-sm text-gray-500 break-all">
-            <span className="text-gray-500">→</span> {createdLongUrl}
-          </div>
-        )}
-      </div>
-      <div className="flex gap-2">
-        <button
-          onClick={() =>
-            shortUrl && navigator.clipboard.writeText(shortUrl)
-          }
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 cursor-pointer"
-        >
-          Copy
-        </button>
-        <a
-          href={shortUrl || "#"}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm text-white hover:bg-gray-800 cursor-pointer"
-        >
-          Open
-        </a>
-      </div>
-    </div>
-              {/* QR Code section */}
+            <div className="mt-6 rounded-xl bg-gray-50 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-sm text-gray-500">Your short link</div>
+                  <div className="font-mono text-lg">{shortUrl}</div>
+
+                  {createdLongUrl && (
+                    <div className="mt-1 text-sm text-gray-500 break-all">
+                      <span className="text-gray-500">→</span> {createdLongUrl}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => shortUrl && navigator.clipboard.writeText(shortUrl)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm 
+                               hover:bg-gray-100 cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                  <a
+                    href={shortUrl || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm text-white 
+                               hover:bg-gray-800 cursor-pointer"
+                  >
+                    Open
+                  </a>
+                </div>
+              </div>
+
               {shortUrl && (
                 <div className="mt-4 grid gap-3 sm:grid-cols-[auto,1fr] sm:items-start">
                   <div className="rounded-xl border border-gray-200 p-3 bg-white flex justify-center">
                     <img
-                      src={`/api/v1/qrcode?text=${encodeURIComponent(
-                        shortUrl
-                      )}&w=200`}
-                      alt="QR code for short URL"
+                      src={`/api/v1/qrcode?text=${encodeURIComponent(shortUrl)}&w=200`}
+                      alt="QR code"
                       width={200}
                       height={200}
-                      className="block"
                     />
                   </div>
                   <div className="text-sm text-gray-600 sm:mt-0 mt-2">
@@ -195,11 +218,10 @@ if (!looksLikeUrl(url)) {
                       Scan to open the short URL. Download PNG for sharing.
                     </p>
                     <a
-                      className="rounded-lg border border-gray-300 px-3 py-1.5 hover:bg-gray-100 cursor-pointer"
-                      href={`/api/v1/qrcode?text=${encodeURIComponent(
-                        shortUrl
-                      )}&w=512&download=1`}
-                      download={`qr-${created}.png`}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 
+                                 hover:bg-gray-100 cursor-pointer"
+                      href={`/api/v1/qrcode?text=${encodeURIComponent(shortUrl)}&w=512&download=1`}
+                      download={`qr-${created ?? "link"}.png`}
                     >
                       Download PNG
                     </a>
@@ -219,11 +241,8 @@ if (!looksLikeUrl(url)) {
                 No links yet. Create one above to see it here.
               </p>
             )}
-            {links.map((l) => (
-              <div
-                key={l.code}
-                className="rounded-xl border border-gray-200 p-4"
-              >
+            {links.map((l: LinkRow) => (
+              <div key={l.code} className="rounded-xl border border-gray-200 p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-sm text-gray-500">Short</div>
