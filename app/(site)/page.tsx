@@ -9,6 +9,8 @@ type LinkRow = {
   clicks: number;
 };
 
+
+
 function normalizeUrl(str: string): string | null {
   let s = str.trim();
 
@@ -46,24 +48,39 @@ export default function HomePage() {
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [origin, setOrigin] = useState("");
 
+   // 👇 ADD pagination state here inside component
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
   useEffect(() => {
     setOrigin(typeof window !== "undefined" ? window.location.origin : "");
     void refresh();
   }, []);
 
-  async function refresh() {
-    try {
-      const r = await fetch("/api/v1/links", {
-        headers: { "x-api-key": process.env.NEXT_PUBLIC_API_KEY ?? "" },
-      });
-      if (r.ok) {
-        const j = (await r.json()) as { links?: LinkRow[] };
-        setLinks(j.links || []);
-      }
-    } catch (err) {
-      console.error("refresh failed", err);
+  async function refresh(page = 1) {
+  try {
+    const r = await fetch(`/api/v1/links?page=${page}`, {
+      headers: { "x-api-key": process.env.NEXT_PUBLIC_API_KEY ?? "" },
+    });
+    if (r.ok) {
+      const j = (await r.json()) as {
+        ok: boolean;
+        rows?: LinkRow[];
+        totalPages?: number;
+        page?: number;
+      };
+      setLinks(j.rows || []);            // ✅ correct field
+      setTotalPages(j.totalPages || 1);  // ✅ set pagination
+      setPage(j.page || 1);              // ✅ update current page
     }
+  } catch (err) {
+    console.error("refresh failed", err);
   }
+}
+
+
+
+
 
   async function onShorten(e: React.FormEvent) {
     e.preventDefault();
@@ -197,6 +214,20 @@ export default function HomePage() {
                   >
                     Open
                   </a>
+                  <button
+  onClick={() => {
+    if (navigator.share) {
+      navigator.share({ title: "Short link", url: shortUrl });
+    } else {
+      navigator.clipboard.writeText(shortUrl);
+      alert("Link copied to clipboard");
+    }
+  }}
+  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 cursor-pointer"
+>
+  Share
+</button>
+
                 </div>
               </div>
 
@@ -233,40 +264,110 @@ export default function HomePage() {
         </section>
 
         {/* Recent links */}
-        <section className="mt-10">
-          <h2 className="text-xl font-semibold">Recent links</h2>
-          <div className="mt-4 grid gap-3">
-            {links.length === 0 && (
-              <p className="text-sm text-gray-500">
-                No links yet. Create one above to see it here.
-              </p>
-            )}
-            {links.map((l: LinkRow) => (
-              <div key={l.code} className="rounded-xl border border-gray-200 p-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="text-sm text-gray-500">Short</div>
-                    <a
-                      className="font-mono text-lg text-gray-900 hover:underline"
-                      href={`/${l.code}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {origin || "https://agkb.in"}/{l.code}
-                    </a>
-                    <div className="mt-1 text-sm text-gray-500 break-all">
-                      <span className="text-gray-500">→</span> {l.url}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-semibold">{l.clicks}</div>
-                    <div className="text-xs text-gray-500">clicks</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+       {/* Notice */}
+
+
+{/* Recent links table */}
+<section className="mt-8">
+  <h2 className="text-lg font-semibold mb-3">Recent Links</h2>
+  <p className="mt-6 text-xs text-gray-500">
+  Note: All links created on <span className="font-medium">agkb.in</span> are public and can be shared by anyone.
+</p>
+
+  {links.length === 0 ? (
+    <p className="text-sm text-gray-500">No links yet.</p>
+  ) : (
+    <div className="overflow-x-auto border border-gray-200 rounded-lg">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 text-left text-gray-600">
+          <tr>
+            <th className="p-2">Long URL</th>
+            <th className="p-2">Short URL</th>
+            <th className="p-2">Created</th>
+            <th className="p-2 text-right">Clicks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {links.map((l) => (
+            <tr key={l.code} className="border-t">
+              
+             <td
+  className="p-2 truncate max-w-xs"
+  title={l.url} // ✅ shows full URL on hover
+>
+  {l.url}
+</td>
+              <td className="p-2">
+                <a
+                  href={`/${l.code}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  {origin}/{l.code}
+                </a>
+              </td>
+              <td className="p-2 text-gray-500">
+                {new Date(l.createdAt).toLocaleDateString()}
+              </td>
+              <td className="p-2 text-right font-medium">{l.clicks}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+
+  {/* Pagination placeholder */}
+{/* Pagination controls */}
+{totalPages > 1 && (
+  <div className="mt-6 flex items-center justify-center gap-2">
+    {/* Newer button */}
+    <button
+      onClick={() => setPage((p: number) => Math.max(1, p - 1))}
+      disabled={page === 1}
+      className="px-3 py-1.5 rounded border border-gray-300 text-sm hover:bg-gray-100 disabled:opacity-50"
+    >
+      Newer
+    </button>
+
+    {/* Numbered pages with shifting window */}
+    {Array.from({ length: totalPages }, (_, i) => i + 1)
+      .slice(
+        Math.max(0, page - 3), // show 2 pages before current
+        Math.min(totalPages, page + 2) // show 2 pages after current
+      )
+      .map((num) => (
+    <button
+  key={num}
+  onClick={() => {
+    setPage(num);     // ✅ update state
+    refresh(num);     // ✅ fetch rows for that page
+  }}
+  className={`px-3 py-1.5 rounded border text-sm ${
+    page === num
+      ? "bg-gray-900 text-white border-gray-900"
+      : "border-gray-300 hover:bg-gray-100"
+  }`}
+>
+  {num}
+</button>
+
+      ))}
+
+    {/* Older button */}
+    <button
+      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+      disabled={page === totalPages}
+      className="px-3 py-1.5 rounded border border-gray-300 text-sm hover:bg-gray-100 disabled:opacity-50"
+    >
+      Older
+    </button>
+  </div>
+)}
+
+</section>
+
       </main>
     </div>
   );

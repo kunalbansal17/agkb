@@ -1,8 +1,8 @@
-// File: /Users/kunal/agkb/app/api/v1/shorten/route.ts
-import * as entry from '../../../../../../app/api/v1/shorten/route.js'
+// File: /Users/kunal/agkb/app/[code]/route.ts
+import * as entry from '../../../../app/[code]/route.js'
 import type { NextRequest } from 'next/server.js'
 
-type TEntry = typeof import('../../../../../../app/api/v1/shorten/route.js')
+type TEntry = typeof import('../../../../app/[code]/route.js')
 
 // Check that the entry is a valid entry
 checkFields<Diff<{

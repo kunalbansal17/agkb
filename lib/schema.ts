@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, uuid, bigserial, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, bigserial, jsonb, bigint } from "drizzle-orm/pg-core";
 
 export const links = pgTable("links", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -8,6 +8,7 @@ export const links = pgTable("links", {
   createdBy: text("created_by"),
   isActive: boolean("is_active").default(true).notNull(),
   meta: jsonb("meta"),
+    clicks: bigint("clicks", { mode: "number" }).default(0).notNull(),
 });
 
 export const clicks = pgTable("clicks", {
