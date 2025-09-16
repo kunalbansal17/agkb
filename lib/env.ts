@@ -5,7 +5,7 @@ function required(name: string): string {
 }
 
 export const env = {
-  DATABASE_URL: process.env.DATABASE_URL || process.env.POSTGRES_URL || "",
+  DATABASE_URL: process.env.DATABASE_URL || "",
   API_KEY: required("API_KEY"),
   HASH_SALT: process.env.HASH_SALT || "rotate_me_regularly",
   ALLOWED_ORIGINS: (process.env.ALLOWED_ORIGINS ||
