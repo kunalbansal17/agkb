@@ -1,1 +1,0 @@
-{"kind":"FETCH","data":{"headers":{"connection":"keep-alive","content-type":"application/json","date":"Mon, 15 Sep 2025 20:50:20 GMT","keep-alive":"timeout=5","transfer-encoding":"chunked","vary":"RSC, Next-Router-State-Tree, Next-Router-Prefetch"},"body":"eyJvayI6dHJ1ZX0=","status":200,"url":"http://localhost:3000/api/v1/ingest-click"},"revalidate":31536000,"tags":[]}
